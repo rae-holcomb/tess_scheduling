@@ -130,40 +130,9 @@ def analyze(observed_times, empty_windows, min_period=13.0, duration=0.0):
                        ruled_out=ruled_out)
 
 
-def update_with_windows(result, true_period, new_windows, duration=0.0):
-    """Fold additional observing windows into an existing alias solution.
-
-    This is the primitive for scoring a proposed future strategy: it asks, for
-    each surviving alias, whether the new windows would distinguish it from the
-    true period. Only ``AMBIGUOUS`` systems can be improved.
-    """
-    if result.flag != AMBIGUOUS:
-        return result
-
-    ruled_out = result.ruled_out.copy()
-    tc = result.tc
-    half = duration / 2.0
-    lo = new_windows["t_start"].values + half
-    hi = new_windows["t_end"].values - half
-
-    truth = _windows_hit(true_period, tc, lo, hi)
-
-    for i, period in enumerate(result.alias_periods):
-        if ruled_out[i]:
-            continue
-        predicted = _windows_hit(period, tc, lo, hi)
-        if not np.array_equal(truth, predicted):
-            ruled_out[i] = True
-
-    n_surviving = int((~ruled_out).sum())
-    flag = SOLVED if n_surviving == 1 else (AMBIGUOUS if n_surviving > 1 else ERROR)
-
-    return AliasResult(flag=flag, observed_times=result.observed_times,
-                       alias_numbers=result.alias_numbers,
-                       alias_periods=result.alias_periods, ruled_out=ruled_out)
-
-
-def _windows_hit(period, tc, lo, hi):
-    """Which of the windows [lo, hi] contain a transit of this ephemeris."""
-    phase_into_window = (tc - lo) % period
-    return phase_into_window <= (hi - lo)
+# Scoring a candidate future strategy is deliberately *not* implemented here as
+# an incremental update to an existing AliasResult. Pruning a stored ladder can
+# only remove candidate periods, so it can never promote a missed planet to a
+# mono or a mono to a duo -- and those are the outcomes an extended mission is
+# most likely to change. See experiment.score_strategy, which re-analyses each
+# system against the combined window table instead.
